@@ -1,0 +1,220 @@
+---
+title: "Assignment 2"
+author: "Diana Rocio Galindo Gonzalez"
+header-includes:
+ - \usepackage{multirow}
+ - \usepackage{longtable}
+output: 
+  pdf_document: 
+    latex_engine: xelatex
+    includes:
+      in_header: 
+      - !expr system.file("includes/fig-valign.tex", package = "summarytools")
+---
+
+
+```{r setup, message=FALSE, warning=FALSE, results=FALSE,include = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Required packages
+pkgs<-c("car","chemometrics","corrplot","corrplot","dplyr","data.table","fitdistrplus",
+        "dygraphs","DT","flextable","factoextra","FactoMineR","ggcorrplot","ggplot2",
+        "lmtest","GGally","ggspatial","ggsci","googleway","ggpubr","grid","gridExtra","heatmaply",
+        "htmlwidgets","kableExtra","knitr", "lattice","leaflet","lubridate","magrittr",
+        "missMDA","naniar","plotly","rnaturalearth","rnaturalearthdata",
+        "rstudioapi","sf","sm","mice","tidyr","tidyverse","vcd","VIM","visdat","xtable")
+
+# Non-installed packages
+inspkgs<-pkgs[!pkgs %in% installed.packages()]
+for(libs in inspkgs) install.packages(libs, 
+                                      repos = "http://cran.us.r-project.org")
+
+# Loading required
+sapply(pkgs,require,character=TRUE)
+
+# Loading files
+current_path <- getActiveDocumentContext()$path 
+current_path
+setwd(dirname(current_path ))
+getwd()
+
+```
+
+
+```{r}
+rm(list=ls())
+set.seed(310883)
+
+# Import initial dataset
+csvf<-list.files(path=".",pattern=".csv")
+df1<-data.frame(lapply(csvf, read.delim,stringsAsFactors = TRUE,header=T, sep=","))
+
+# Reordering columns to facilitate my reading
+df2<-df1[,c(1,14,3,13,2,4:12)]
+
+# Initial data frame structure
+data.frame(Variable = names(df2),
+ Class = sapply(df2, class),
+ Head = sapply(df2, function(x) paste0(head(x,n=4), collapse = ", ")),
+ row.names = NULL) %>% kable(booktabs = T) %>%
+  kable_styling(full_width = F, latex_options = c("striped", "scale_down")) %>%
+  column_spec(1, width = "10em")
+```
+
+• Fix structural errors (usually coding errors, trailing blanks in labels, lower/upper case consistency, etc.) and removing duplicate observations:
+
+```{r, result="asis", message=FALSE}
+# Removing leading, trailing, multiple spaces on levels and converting empty in NA
+for (i in c(1,6:14)){ df2[,i] <-gsub(" +$", " ", df2[,i]) }
+for (i in c(1,6:14)){ df2[,i] <-trimws(df2[,i])}
+df3<-df2
+df3[df3==""]<-NA
+
+# Converting char variables as factors
+df3[sapply(df3[,2:13], is.character)] <- lapply(df3[sapply(df2[,2:13], is.character)], 
+                                       as.factor)
+# str(df3)
+# Checking and removing duplicates
+kable(table(duplicated(df3)), col.names = c("Duplicated","Freq"),booktabs = T) %>%
+  kable_styling(full_width = F)
+```
+
+There is no duplicated data.
+
+• Check data types. Dates should be coded as such and factors should have level names (if possible, levels have to be set and clarify the variable they belong to). This point is sometimes included under data transformation process. New derived variables are to be produced sometimes scaling and/or normalization (range/shape changes to numeric variables) or category regrouping for factors (nominal/ordinal).
+
+```{r, message=FALSE, include = FALSE}  
+library(summarytools)
+st_options(
+  plain.ascii = FALSE, 
+  style = "rmarkdown",
+  dfSummary.style = "grid",
+  dfSummary.valid.col = FALSE,
+  dfSummary.graph.magnif = .52,
+  subtitle.emphasis = FALSE,
+  tmp.img.dir = "/tmp"
+)
+
+define_keywords(title.dfSummary = "Initial data frame summary in PDF Format")
+```
+
+```{r, results='asis', message=FALSE, warning=FALSE}  
+str(df2)
+resp_cat<-df2[,c(2,5:14)]
+str(resp_cat)
+resp_cat$target<-as.logical(resp_cat$target)
+  #as.factor(resp_cat$target)
+resp_cat[sapply(resp_cat, is.character)] <- lapply(resp_cat[sapply(resp_cat, is.character)], 
+                                       as.factor)
+str(resp_cat)
+
+a<-table(resp_cat$target,resp_cat$enrolled_university,resp_cat$relevent_experience)
+head(a)
+d<-as.data.frame(a)
+b<-table(resp_cat$enrolled_university,resp_cat$target)
+c<-as.data.frame(b)
+
+ggballoonplot(c, fill = "value", shape = 25, color= 'gray',rotate.x.text=FALSE) + scale_fill_viridis(option="H")
+  
+  #scale_fill_viridis_c(option = "D")
+
+ggplot(d, aes(x = Var1, y = Freq))+
+  geom_bar(
+    aes(fill = Var2), stat = "identity", color = "white",
+    position = position_dodge(0.9)
+    ) + facet_wrap(~Var3) + 
+  fill_palette("locuszoom")
+
+c<-resp_cat[,2:11]
+names
+a<-names(c)
+a<-as.list(a)
+
+funCate<-function(i){grep(i,names(c))
+                     nm=paste0(i)
+                     }
+balloonplot<-lapply(1:length(c),funCate)
+                                         #tmp_table<-as.data.frame(table(c[,index],resp_cat$target))
+#do.call(grid.arrange,balloonplot)
+```
+
+
+```{r, result="asis", message=FALSE}
+# Checking levels of factor variables
+
+levels(df3$relevent_experience)<-list(NoRelExp="Has relevent experience",
+                                      RelExp= "No relevent experience")
+levels(df3$enrolled_university)<-list(NEnroll="no_enrollment", PTC="Part time course",
+                                      FTC="Full time course")
+
+levels(df3$education_level)<-list(Primary= "Primary School",HSchool="High School",
+                                  Grad="Graduate",Master="Masters",PhD="Phd")    
+
+#levels(df3$major_discipline)<-list(NoMajor="No Major",NoSTEM = c("Arts","Business Degree","Humanities","Other"), STEM="STEM")
+
+df3$experience<-as.character(df3$experience)
+df3$experience[df3$experience == '<1'] <- '0.9'
+df3$experience[df3$experience == '>20'] <- '21'
+df3$experience<-as.numeric(df3$experience)
+df3$experience_cat <- ntile(df3$experience, 4)  
+
+#table(df3$experience,df3$experience_cat)
+df3$experience_cat<-as.factor(df3$experience_cat)
+levels(df3$experience_cat)<-list(Less4='1', '4to9' = '2', '9to16' ='3', More16='4')
+df3$company_size <- factor(df3$company_size, order = TRUE, 
+                           levels =c('<10','10/49','50-99','100-500','500-999',
+                                     '1000-4999','5000-9999','10000+'))
+#table(ntile(df3$company_size, 4), df3$company_size)
+df3$compSizeCat<-ntile(df3$company_size, 4)
+#table(ntile(df3$company_size, 4), df3$company_size)
+#table(df3$compSizeCat, df3$company_size)
+df3$compSizeCat<-as.factor(df3$compSizeCat)
+levels(df3$compSizeCat)<-list(Less100='1', '50to500' = '2', '100to5000' ='3',
+                              More1000='4')
+
+```
+
+Taking into account the factor variables behavior, from summary it can be concluded:
+
+- Too many city levels with no additional information to perfom aggregation or spatial aggregation. In consequence it is not considered in the analysis.
+- Recategorized using quartiles to be included in the analysis: company_size and experience
+
+
+```{r, results='asis', message=FALSE, warning=FALSE}  
+str(df3)
+df4<-df3[,c("enrollee_id","target","city_development_index","training_hours","gender",
+            "relevent_experience","enrolled_university","education_level","major_discipline","experience_cat","compSizeCat","company_type","last_new_job")]
+dfSummary(df4)
+```
+• Filter unwanted outliers. Univariate and multivariate outliers have to be highlighted. Remove 
+register/erase values and set NA for univariate outiers. 
+
+In accordance with the summary table, there is presence of univariate outlier values per numeric variable.
+
+```{r, message=FALSE, warning=FALSE}
+a<-names(df4[,3:4])
+a<-as.list(a)
+fun02<-function(i){index=grep(i,names(df4[,-1]))
+                   nm=paste0(i)
+                   assign(paste("g",i,sep=""),
+                   ggplot(df4[,-1], aes(df4[,index])) +  
+                   geom_boxplot(fill='#A4A4A4', outlier.colour="red", 
+                                  outlier.shape=10, outlier.size=1)+
+                   labs(title=nm, x=NULL, y=NULL)) +
+                   theme(plot.title = element_text(size = rel(0.7),face ="bold",
+                                                   hjust = 0.5),
+                        axis.title.y = element_text(size = rel(0.6)),
+                        axis.text = element_text(size = rel(0.6))) }
+boxplots<-lapply(a,fun02)
+do.call(grid.arrange, boxplots)
+
+```
+
+
+```{r, message=FALSE, warning=FALSE}
+ggplot(df4[,-1], aes(df4[,6])) +  geom_boxplot(fill='#A4A4A4', outlier.colour="red", 
+                                  outlier.shape=10, outlier.size=1)+ theme(plot.title = element_text(size = rel(0.7),
+                                                                                        face="bold",
+                                                                                        hjust = 0.5), 
+                                                                           axis.title.y = element_text(size = rel(0.6)),axis.text = element_text(size = rel(0.6)))
+```
